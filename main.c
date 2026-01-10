@@ -7,10 +7,12 @@
 
 #define GRAVITY 980
 
-#define VERTICAL_PARTICLE_COUNT 10
-#define HORIZONTAL_PARTICLE_COUNT 10
+#define VERTICAL_PARTICLE_COUNT 15
+#define HORIZONTAL_PARTICLE_COUNT 15
 
-#define PARTICLE_REST_LENGTH 50
+#define PARTICLE_REST_LENGTH 30
+
+const Vector2 WIND = { 0.2 , 0 };
 
 typedef struct Particle {
     bool pinned;
@@ -40,6 +42,10 @@ Vector2 vec2mul(Vector2 a , Vector2 b) {
 
 Vector2 vec2mulf(Vector2 a , float b) {
     return (Vector2) { a.x * b , a.y * b };
+}
+
+Vector2 vec2divf(Vector2 a , float b) {
+    return (Vector2) { a.x / b , a.y / b };
 }
 #pragma endregion VEC_MATH
 
@@ -158,24 +164,57 @@ void SolveClothConstraints() {
     }
 }
 
-/* TODO
 void UpdateWind() {
 
-    for (int y = 1; y < VERTICAL_PARTICLE_COUNT; ++y) {
-        for (int x = 1; x < HORIZONTAL_PARTICLE_COUNT; ++x) {
+    for (int y = 0; y < VERTICAL_PARTICLE_COUNT; ++y) {
+        for (int x = 0; x < HORIZONTAL_PARTICLE_COUNT; ++x) {
 
-            Particle p1 = PARTICLES[(y - 1) * HORIZONTAL_PARTICLE_COUNT + (x - 1)];
-            Particle p2 = PARTICLES[(y - 1) * HORIZONTAL_PARTICLE_COUNT + x];
-            Particle p3 = PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x - 1)];
+            if (x + 1 < HORIZONTAL_PARTICLE_COUNT - 1) {
 
-            // Finding normal
-            Vector2 normal = vec2mul(vec2sub(p2.position , p1.position) , vec2sub(p3.position , p1.position));
+                Vector2 e = vec2sub(PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)].position , PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position);
+                Vector2 n = { -e.y , e.x };
+
+                float L = sqrt(e.x * e.x + e.y * e.y);
+                Vector2 nL = vec2divf(n , L);
+
+                float I = (WIND.x * nL.x) + (WIND.y * nL.y);
+                Vector2 F = vec2divf(vec2mulf(nL , I * L) , 2);
+
+                if (!PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].pinned) {
+                    PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position.x += F.x;
+                    PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position.y += F.y;
+                }
+
+                PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)].position.x += F.x;
+                PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)].position.y += F.y;
+
+            }
+
+            if (y + 1 < VERTICAL_PARTICLE_COUNT - 1) {
+
+                Vector2 e = vec2sub(PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x].position , PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position);
+                Vector2 n = { -e.y , e.x };
+
+                float L = sqrt(e.x * e.x + e.y * e.y);
+                Vector2 nL = vec2divf(n , L);
+
+                float I = (WIND.x * nL.x) + (WIND.y * nL.y);
+                Vector2 F = vec2divf(vec2mulf(nL , I * L) , 2);
+
+                if (!PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].pinned) {
+                    PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position.x += F.x;
+                    PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position.y += F.y;
+                }
+
+                PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x].position.x += F.x;
+                PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x].position.y += F.y;
+
+            }
 
         }
     }
 
 }
-*/
 
 int main(void) {
 
@@ -200,6 +239,7 @@ int main(void) {
         }
 
         if (DEBUG_RENDERER) {
+            UpdateWind();
             UpdateClothParticles(GetFrameTime());
             for (int i = 0; i < 5; ++i) {
                 SolveClothConstraints();
