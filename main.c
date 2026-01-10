@@ -34,6 +34,10 @@ Vector2 vec2sub(Vector2 a , Vector2 b) {
     return (Vector2) { a.x - b.x , a.y - b.y };
 }
 
+Vector2 vec2mul(Vector2 a , Vector2 b) {
+    return (Vector2) { a.x * b.x , a.y * b.y };
+}
+
 Vector2 vec2mulf(Vector2 a , float b) {
     return (Vector2) { a.x * b , a.y * b };
 }
@@ -76,13 +80,13 @@ void UpdateClothParticles(float deltaTime) {
     }
 }
 
-void SolveDistanceConstraint(Particle* a , Particle* b) {
+void SolveDistanceConstraint(Particle* a , Particle* b , float REST_LENGTH) {
 
     Vector2 vec_dist = vec2sub(b->position , a->position);
     float dist = sqrt(vec_dist.x * vec_dist.x + vec_dist.y * vec_dist.y);
     if (dist < 0.0001f) return;
 
-    float diff = (dist - PARTICLE_REST_LENGTH) / dist;
+    float diff = (dist - REST_LENGTH) / dist;
     
     if (!a->pinned && !b->pinned) {
         Vector2 correction = {
@@ -121,17 +125,57 @@ void SolveClothConstraints() {
     for (int y = 0; y < VERTICAL_PARTICLE_COUNT; ++y) {
         for (int x = 0; x < HORIZONTAL_PARTICLE_COUNT; ++x) {
 
+            #pragma region STRUCTURAL
             if (x + 1 < HORIZONTAL_PARTICLE_COUNT) {
-                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)]);
+                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)] , PARTICLE_REST_LENGTH);
             }
 
             if (y + 1 < VERTICAL_PARTICLE_COUNT) {
-                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x]);
+                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x] , PARTICLE_REST_LENGTH);
+            }
+            #pragma endregion STRUCTURAL
+
+            #pragma region SHEAR
+            if (x + 1 < HORIZONTAL_PARTICLE_COUNT && y + 1 < VERTICAL_PARTICLE_COUNT) {
+                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + (x + 1)] , sqrt(PARTICLE_REST_LENGTH * PARTICLE_REST_LENGTH + PARTICLE_REST_LENGTH * PARTICLE_REST_LENGTH) );
             }
 
+            if (y + 1 < VERTICAL_PARTICLE_COUNT && x + 1 < HORIZONTAL_PARTICLE_COUNT) {
+                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)] , &PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x] , sqrt(PARTICLE_REST_LENGTH * PARTICLE_REST_LENGTH + PARTICLE_REST_LENGTH * PARTICLE_REST_LENGTH) );
+            }
+            #pragma endregion SHEAR
+        
+            #pragma region BEND
+            if (x + 2 < HORIZONTAL_PARTICLE_COUNT) {
+                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 2)] , PARTICLE_REST_LENGTH * 2);
+            }
+
+            if (y + 2 < VERTICAL_PARTICLE_COUNT) {
+                SolveDistanceConstraint(&PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x] , &PARTICLES[(y + 2) * HORIZONTAL_PARTICLE_COUNT + x] , PARTICLE_REST_LENGTH * 2);
+            }
+            #pragma endregion BEND
         }
     }
 }
+
+/* TODO
+void UpdateWind() {
+
+    for (int y = 1; y < VERTICAL_PARTICLE_COUNT; ++y) {
+        for (int x = 1; x < HORIZONTAL_PARTICLE_COUNT; ++x) {
+
+            Particle p1 = PARTICLES[(y - 1) * HORIZONTAL_PARTICLE_COUNT + (x - 1)];
+            Particle p2 = PARTICLES[(y - 1) * HORIZONTAL_PARTICLE_COUNT + x];
+            Particle p3 = PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x - 1)];
+
+            // Finding normal
+            Vector2 normal = vec2mul(vec2sub(p2.position , p1.position) , vec2sub(p3.position , p1.position));
+
+        }
+    }
+
+}
+*/
 
 int main(void) {
 
@@ -157,7 +201,7 @@ int main(void) {
 
         if (DEBUG_RENDERER) {
             UpdateClothParticles(GetFrameTime());
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < 5; ++i) {
                 SolveClothConstraints();
             }
             DebugCloth();
