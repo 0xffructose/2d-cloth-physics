@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <math.h>
+
 #include <raylib.h>
+#include <raymath.h>
 
 #define WIDTH 640
 #define HEIGHT 640
@@ -11,8 +13,10 @@
 #define HORIZONTAL_PARTICLE_COUNT 15
 
 #define PARTICLE_REST_LENGTH 30
+#define MOUSE_RADIUS 50.0F
 
-const Vector2 WIND = { 0.2 , 0 };
+// Vector2 WIND = { 5 , 0 };
+// const float WIND_SPEED = 1000;
 
 typedef struct Particle {
     bool pinned;
@@ -25,29 +29,7 @@ typedef struct Particle {
 
 Particle PARTICLES[VERTICAL_PARTICLE_COUNT * HORIZONTAL_PARTICLE_COUNT];
 
-bool DEBUG_RENDERER = false;
-
-#pragma region VEC_MATH
-Vector2 vec2sum(Vector2 a , Vector2 b) {
-    return (Vector2) { a.x + b.x , a.y + b.y };
-}
-
-Vector2 vec2sub(Vector2 a , Vector2 b) {
-    return (Vector2) { a.x - b.x , a.y - b.y };
-}
-
-Vector2 vec2mul(Vector2 a , Vector2 b) {
-    return (Vector2) { a.x * b.x , a.y * b.y };
-}
-
-Vector2 vec2mulf(Vector2 a , float b) {
-    return (Vector2) { a.x * b , a.y * b };
-}
-
-Vector2 vec2divf(Vector2 a , float b) {
-    return (Vector2) { a.x / b , a.y / b };
-}
-#pragma endregion VEC_MATH
+bool DEBUG_RENDERER = true;
 
 void DebugCloth() {
     for (int i = 0; i < VERTICAL_PARTICLE_COUNT * HORIZONTAL_PARTICLE_COUNT; ++i) {
@@ -69,6 +51,22 @@ void DrawCloth() {
     }
 }
 
+void UpdateMouseEffect() {
+
+    for (int i = 0; i < VERTICAL_PARTICLE_COUNT * HORIZONTAL_PARTICLE_COUNT; ++i) {
+        float distance = Vector2Distance(PARTICLES[i].position , GetMousePosition());
+        if (distance > MOUSE_RADIUS || PARTICLES[i].pinned) continue;
+
+        Vector2 diff = Vector2Subtract(PARTICLES[i].position , GetMousePosition());
+        Vector2 n = Vector2Scale(diff , 1.0F/distance);
+
+        Vector2 target = Vector2Add(GetMousePosition() , Vector2Scale(n , MOUSE_RADIUS));
+        PARTICLES[i].position = target;
+        PARTICLES[i].previous_position = Vector2Subtract(PARTICLES[i].position , Vector2Scale(n , 25.0F));
+    }
+
+}
+
 void UpdateClothParticles(float deltaTime) {
     for (int i = 0; i < VERTICAL_PARTICLE_COUNT * HORIZONTAL_PARTICLE_COUNT; ++i) {
 
@@ -76,9 +74,9 @@ void UpdateClothParticles(float deltaTime) {
 
         PARTICLES[i].acceleration.y += GRAVITY;
 
-        Vector2 velocity = vec2sub(PARTICLES[i].position , PARTICLES[i].previous_position);
+        Vector2 velocity = Vector2Subtract(PARTICLES[i].position , PARTICLES[i].previous_position);
         
-        Vector2 new_position = vec2sum(vec2sum(PARTICLES[i].position , velocity) , vec2mulf(PARTICLES[i].acceleration , deltaTime * deltaTime));
+        Vector2 new_position = Vector2Add(Vector2Add(PARTICLES[i].position , velocity) , Vector2Scale(PARTICLES[i].acceleration , deltaTime * deltaTime));
         PARTICLES[i].previous_position = PARTICLES[i].position; 
         PARTICLES[i].position = new_position;   
         PARTICLES[i].acceleration = (Vector2) { 0 , 0 };
@@ -88,7 +86,7 @@ void UpdateClothParticles(float deltaTime) {
 
 void SolveDistanceConstraint(Particle* a , Particle* b , float REST_LENGTH) {
 
-    Vector2 vec_dist = vec2sub(b->position , a->position);
+    Vector2 vec_dist = Vector2Subtract(b->position , a->position);
     float dist = sqrt(vec_dist.x * vec_dist.x + vec_dist.y * vec_dist.y);
     if (dist < 0.0001f) return;
 
@@ -162,8 +160,9 @@ void SolveClothConstraints() {
             #pragma endregion BEND
         }
     }
-}
+}   
 
+/*
 void UpdateWind() {
 
     for (int y = 0; y < VERTICAL_PARTICLE_COUNT; ++y) {
@@ -171,14 +170,14 @@ void UpdateWind() {
 
             if (x + 1 < HORIZONTAL_PARTICLE_COUNT - 1) {
 
-                Vector2 e = vec2sub(PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)].position , PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position);
+                Vector2 e = Vector2Subtract(PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + (x + 1)].position , PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position);
                 Vector2 n = { -e.y , e.x };
 
                 float L = sqrt(e.x * e.x + e.y * e.y);
-                Vector2 nL = vec2divf(n , L);
+                Vector2 nL = Vector2Scale(n , 1.0F/L);
 
                 float I = (WIND.x * nL.x) + (WIND.y * nL.y);
-                Vector2 F = vec2divf(vec2mulf(nL , I * L) , 2);
+                Vector2 F = Vector2Scale(Vector2Scale(nL , I * L) , 1.0F/2); // CHECK
 
                 if (!PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].pinned) {
                     PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position.x += F.x;
@@ -192,14 +191,14 @@ void UpdateWind() {
 
             if (y + 1 < VERTICAL_PARTICLE_COUNT - 1) {
 
-                Vector2 e = vec2sub(PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x].position , PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position);
+                Vector2 e = Vector2Subtract(PARTICLES[(y + 1) * HORIZONTAL_PARTICLE_COUNT + x].position , PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position);
                 Vector2 n = { -e.y , e.x };
 
                 float L = sqrt(e.x * e.x + e.y * e.y);
-                Vector2 nL = vec2divf(n , L);
+                Vector2 nL = Vector2Scale(n , 1.0F/L);
 
                 float I = (WIND.x * nL.x) + (WIND.y * nL.y);
-                Vector2 F = vec2divf(vec2mulf(nL , I * L) , 2);
+                Vector2 F = Vector2Scale(Vector2Scale(nL , I * L) , 1.0F/2);
 
                 if (!PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].pinned) {
                     PARTICLES[y * HORIZONTAL_PARTICLE_COUNT + x].position.x += F.x;
@@ -215,6 +214,7 @@ void UpdateWind() {
     }
 
 }
+*/
 
 int main(void) {
 
@@ -233,17 +233,24 @@ int main(void) {
     while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
-        
+
+        /*
         if (IsKeyPressed(KEY_D)) {
             DEBUG_RENDERER = !DEBUG_RENDERER;
         }
+        */
 
         if (DEBUG_RENDERER) {
-            UpdateWind();
+            // WIND = Vector2Scale(WIND , abs(sin(GetFrameTime() * WIND_SPEED)));
+            // UpdateWind();
+            
+            DrawCircleLines(GetMousePosition().x , GetMousePosition().y , MOUSE_RADIUS , SKYBLUE);
+
             UpdateClothParticles(GetFrameTime());
-            for (int i = 0; i < 5; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 SolveClothConstraints();
             }
+            UpdateMouseEffect();
             DebugCloth();
             DrawCloth();
         }
